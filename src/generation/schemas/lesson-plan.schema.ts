@@ -6,39 +6,59 @@ export const LessonPlanSchema = z.object({
     classLevel: z.string(),
     topic: z.string(),
     subTopics: z.array(z.string()),
-    term: z.number(),
-    week: z.number(),
-    duration: z.number(),
+    term: z.coerce.number(),
+    week: z.coerce.number(),
+    duration: z.coerce.number(), // in minutes
     state: z.string(),
     session: z.string().optional(),
-    date: z.string().optional(),
   }),
 
-  objectives: z.array(z.string()).min(1).max(10),
-
-  entryBehaviour: z.string(),
+  referenceBooks: z.array(z.string()).min(1),
 
   instructionalMaterials: z.array(z.string()).min(1),
 
-  referenceMaterials: z.array(z.string()),
+  // Prerequisites students MUST already have to follow this lesson
+  entryBehaviour: z.string(),
 
-  introduction: z.object({
-    setInduction: z.string(),
-    duration: z.string(),
+  // Related content learned in previous lessons — used for review/bridging
+  previousKnowledge: z.string(),
+
+  objectives: z.object({
+    // Bloom's taxonomy — knowledge, comprehension, application, analysis
+    cognitive: z.array(z.string()).min(2),
+    // Values, attitudes, appreciation
+    affective: z.array(z.string()).min(1),
+    // Observable physical/practical skills
+    psychomotor: z.array(z.string()).min(1),
   }),
 
-  development: z.array(
+  // 3-step NERDC presentation format
+  presentation: z.array(
     z.object({
       step: z.number(),
+      title: z.string(), // e.g. "Identification of Prior Ideas", "Exploration", "Discussion"
       teacherActivity: z.string(),
       studentActivity: z.string(),
       duration: z.string().optional(),
     }),
+  ).min(3),
+
+  commonMisconceptions: z.array(
+    z.object({
+      description: z.string(),
+      reason: z.string(),
+      correction: z.string(),
+    })
   ).min(1),
 
-  evaluation: z.array(z.string()).min(1).max(10),
+  differentiation: z.object({
+    support: z.string(),
+    extension: z.string(),
+  }),
 
-  conclusion: z.string(),
+  evaluation: z.array(z.string()).min(3),
+
+  summary: z.string(),
 
   assignment: z.string(),
 });
