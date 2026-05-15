@@ -5,6 +5,7 @@ import PDFDocument = require('pdfkit');
 import { PrismaService } from '../prisma/prisma.service';
 import { LessonNote } from '../generation/schemas/lesson-note.schema';
 import { LessonPlan } from '../generation/schemas/lesson-plan.schema';
+import { generateSvg, drawDiagramPdf, diagramPdfHeight } from './diagram.generator';
 
 type NoteRecord = Awaited<ReturnType<ExportService['getNote']>>;
 
@@ -71,11 +72,18 @@ export class ExportService {
         doc.text('No content available.');
       }
 
-      const pageCount = doc.bufferedPageRange().count;
+      const range = doc.bufferedPageRange();
+      const pageCount = range.count;
       for (let i = 0; i < pageCount; i++) {
-        doc.switchToPage(i);
+        doc.switchToPage(range.start + i);
+        doc.page.margins.bottom = 0;
         doc.fontSize(10).font('Times-Roman').fillColor('#000000')
-          .text(`Page ${i + 1} of ${pageCount}`, 50, doc.page.height - 40, { align: 'center' });
+          .text(`Page ${i + 1} of ${pageCount}`, 0, doc.page.height - 40, {
+            align: 'center',
+            width: doc.page.width,
+            lineBreak: false,
+          });
+        doc.page.margins.bottom = 50;
       }
 
       doc.end();
@@ -239,6 +247,14 @@ export class ExportService {
         ${sc.keyPoints.length ? `
           <p style="font-family:'Times New Roman',Times,serif;font-size:12pt;"><strong>Key Points:</strong></p>
           <ul style="font-family:'Times New Roman',Times,serif;font-size:12pt;">${sc.keyPoints.map((kp) => `<li>${html(kp)}</li>`).join('')}</ul>` : ''}
+        ${sc.diagram ? (() => {
+          const svg = generateSvg(sc.diagram);
+          const b64 = Buffer.from(svg).toString('base64');
+          return `<div style="text-align:center;margin:14px 0;">
+            <img src="data:image/svg+xml;base64,${b64}" style="max-width:500px;display:block;margin:0 auto;" alt="${html(sc.diagram.title ?? sc.diagram.type)}"/>
+            ${sc.diagram.title ? `<p style="font-family:'Times New Roman',Times,serif;font-size:10pt;font-style:italic;margin:4px 0;">${html(sc.diagram.title)}</p>` : ''}
+          </div>`;
+        })() : ''}
       `).join('')}
 
       ${ln.commonMisconceptions && ln.commonMisconceptions.length > 0 ? `
@@ -475,7 +491,14 @@ export class ExportService {
         doc.fontSize(12).font('Times-Bold').text('Key Points:', this.LEFT + 10, doc.y);
         sc.keyPoints.forEach((kp) => this.pdfText(doc, `•  ${plain(kp)}`, 24));
       }
-      doc.moveDown(0.5);
+
+      if (sc.diagram) {
+        const dh = diagramPdfHeight(sc.diagram);
+        if (doc.y + dh > doc.page.height - doc.page.margins.bottom) doc.addPage();
+        doc.moveDown(0.3);
+        drawDiagramPdf(doc, sc.diagram, this.LEFT + 10, this.WIDTH - 20);
+      }
+
       doc.moveDown(0.5);
     });
 

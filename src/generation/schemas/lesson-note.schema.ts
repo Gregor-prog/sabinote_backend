@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DiagramSchema } from './diagram.schema';
 
 export const LessonNoteSchema = z.object({
   header: z.object({
@@ -60,6 +61,8 @@ export const LessonNoteSchema = z.object({
       ),
       // Key sentences/rules to write on the board
       keyPoints: z.array(z.string()).min(2),
+      // Optional visual diagram for this sub-topic
+      diagram: DiagramSchema.optional(),
     }),
   ).min(1),
 

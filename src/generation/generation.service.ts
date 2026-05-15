@@ -563,6 +563,12 @@ SUBJECT CONTENT — per sub-topic:
   - explanation: Complete, self-contained academic content a student can read and understand independently. Include definitions, formulas, rules, worked-through examples with full workings. Write at the right level for ${meta.classLevel ?? ''}.
   - workedExamples: At least 2 per sub-topic. Each solution must show EVERY step — no jumping. Nigerian students need to see the complete working.
   - keyPoints: The exact sentences the teacher writes on the board. Short, memorable, correct.
+  - diagram (OPTIONAL): Only include when a visual genuinely aids understanding. Omit entirely for non-visual topics.
+    Supported types (choose the most appropriate):
+    • "number_line"     → integers/fractions on a line. Fields: range:[min,max], markedPoints:[{value,label?}]
+    • "cartesian_plane" → coordinates/graphs. Fields: xRange:[min,max], yRange:[min,max], points:[{x,y,label?}], lines:[{from:{x,y},to:{x,y}}]
+    • "bar_chart"       → statistics/data display. Fields: bars:[{label,value}], yAxisLabel?
+    • "table_of_values" → function input/output table. Fields: columns:[{header,values:[...strings]}]
 
 BOARD SUMMARY: 4-6 key facts/rules/formulas for students to copy. These go on the board at the end of the lesson.
 
@@ -644,7 +650,15 @@ OUTPUT — return ONLY this exact JSON, no markdown, no extra text:
         "Definition or rule written exactly as it appears on the board",
         "Formula or key fact 2",
         "Important reminder or exception"
-      ]
+      ],
+      "diagram": {
+        "type": "cartesian_plane",
+        "title": "Optional: only include diagram when genuinely useful",
+        "xRange": [-6, 6],
+        "yRange": [-6, 6],
+        "points": [{ "x": 3, "y": 2, "label": "A" }],
+        "lines": [{ "from": { "x": 0, "y": 0 }, "to": { "x": 3, "y": 6 } }]
+      }
     }
   ],
   "commonMisconceptions": [
