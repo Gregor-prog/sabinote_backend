@@ -1,6 +1,13 @@
 import {
-  Body, Controller, Get, HttpCode, HttpStatus,
-  Post, Query, Req, UseGuards,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
@@ -16,7 +23,10 @@ export class WalletController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async getBalance(@CurrentUser() user: { userId: string }) {
-    return { success: true, data: await this.walletService.getBalance(user.userId) };
+    return {
+      success: true,
+      data: await this.walletService.getBalance(user.userId),
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -28,27 +38,59 @@ export class WalletController {
   ) {
     return {
       success: true,
-      data: await this.walletService.getTransactions(user.userId, +page, +limit),
+      data: await this.walletService.getTransactions(
+        user.userId,
+        +page,
+        +limit,
+      ),
     };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('packages')
   getPackages() {
-    return { success: true, data: { packages: this.walletService.getPackages() } };
+    return {
+      success: true,
+      data: { packages: this.walletService.getPackages() },
+    };
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('topup/initiate')
-  async initiateTopup(@CurrentUser() user: { userId: string }, @Body() dto: InitiateTopupDto) {
-    return { success: true, data: await this.walletService.initiateTopup(user.userId, dto) };
+  async initiateTopup(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: InitiateTopupDto,
+  ) {
+    return {
+      success: true,
+      data: await this.walletService.initiateTopup(user.userId, dto),
+    };
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('topup/verify')
   @HttpCode(HttpStatus.OK)
-  async verifyTopup(@CurrentUser() user: { userId: string }, @Body('reference') reference: string) {
-    return { success: true, data: await this.walletService.verifyTopup(user.userId, reference) };
+  async verifyTopup(
+    @CurrentUser() user: { userId: string },
+    @Body('reference') reference: string,
+  ) {
+    return {
+      success: true,
+      data: await this.walletService.verifyTopup(user.userId, reference),
+    };
+  }
+
+  // TODO: TEMPORARY — Remove this endpoint when Paystack is fully integrated
+  @UseGuards(JwtAuthGuard)
+  @Post('topup/manual')
+  async manualTopup(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: InitiateTopupDto,
+  ) {
+    return {
+      success: true,
+      data: await this.walletService.manualTopup(user.userId, dto),
+    };
   }
 
   // No JWT guard — Paystack calls this directly. Validated by HMAC signature.

@@ -4,7 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NotificationType, TransactionPurpose, TransactionStatus, TransactionType } from '@prisma/client';
+import {
+  NotificationType,
+  TransactionPurpose,
+  TransactionStatus,
+  TransactionType,
+} from '@prisma/client';
 import axios from 'axios';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -59,7 +64,8 @@ export class WalletService {
   async initiateTopup(userId: string, dto: InitiateTopupDto) {
     // Resolve package from server-side config — never trust client-provided amounts
     const pkg = this.packages.find((p) => p.id === dto.packageId);
-    if (!pkg) throw new BadRequestException(`Unknown package: ${dto.packageId}`);
+    if (!pkg)
+      throw new BadRequestException(`Unknown package: ${dto.packageId}`);
 
     const user = await this.prisma.user.findUnique({
       where: { userId },
@@ -128,7 +134,11 @@ export class WalletService {
 
     const response = await axios.get(
       `${this.paystackBase}/transaction/verify/${reference}`,
-      { headers: { Authorization: `Bearer ${this.config.getOrThrow('PAYSTACK_SECRET_KEY')}` } },
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.getOrThrow('PAYSTACK_SECRET_KEY')}`,
+        },
+      },
     );
 
     if (response.data.data.status !== 'success') {
@@ -141,7 +151,10 @@ export class WalletService {
 
   async handleWebhook(rawBody: Buffer, signature: string) {
     const secret = this.config.getOrThrow('PAYSTACK_WEBHOOK_SECRET');
-    const hash = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
+    const hash = crypto
+      .createHmac('sha512', secret)
+      .update(rawBody)
+      .digest('hex');
 
     if (hash !== signature) return; // silently ignore invalid signatures
 
@@ -155,7 +168,10 @@ export class WalletService {
   private async creditWallet(reference: string, metadata: any) {
     // Idempotency check — never double-credit
     const alreadyProcessed = await this.prisma.transaction.findFirst({
-      where: { paystackReference: reference, status: TransactionStatus.success },
+      where: {
+        paystackReference: reference,
+        status: TransactionStatus.success,
+      },
     });
     if (alreadyProcessed) return;
 
@@ -188,5 +204,60 @@ export class WalletService {
         },
       }),
     ]);
+  }
+
+  // TODO: TEMPORARY — Remove this method when Paystack is fully integrated
+  async manualTopup(userId: string, dto: InitiateTopupDto) {
+    const pkg = this.packages.find((p) => p.id === dto.packageId);
+    if (!pkg)
+      throw new BadRequestException(`Unknown package: ${dto.packageId}`);
+
+    const user = await this.prisma.user.findUnique({ where: { userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+
+    const reference = `manual_${Date.now()}_${userId.slice(0, 8)}`;
+    const parats = pkg.parats;
+    const newBalance = Number(wallet.balance) + parats;
+
+    await this.prisma.$transaction([
+      this.prisma.wallet.update({
+        where: { walletId: wallet.walletId },
+        data: { balance: newBalance },
+      }),
+      this.prisma.transaction.create({
+        data: {
+          walletId: wallet.walletId,
+          userId,
+          type: TransactionType.credit,
+          amountAdded: parats,
+          balanceBefore: wallet.balance,
+          balanceAfter: newBalance,
+          purpose: TransactionPurpose.topup,
+          paystackReference: reference,
+          description: `Manual top up ${parats} Parats [DEV ONLY]`,
+          status: TransactionStatus.success,
+        },
+      }),
+      this.prisma.notification.create({
+        data: {
+          userId,
+          type: NotificationType.wallet_topup,
+          title: 'Wallet Topped Up',
+          body: `${parats} Parats have been added to your wallet. New balance: ${newBalance} Parats.`,
+          metadata: { reference, parats, packageId: pkg.id },
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      reference,
+      newBalance,
+      parats,
+      package: pkg,
+    };
   }
 }
