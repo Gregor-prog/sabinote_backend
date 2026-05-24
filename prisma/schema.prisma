@@ -174,6 +174,26 @@ model CurriculumWeek {
   @@index([state, subject], name: "idx_curriculum_state_subject")
 }
 
+model GeneralCurriculum {
+  generalCurriculumId String   @id @default(uuid())
+  subject             String   @db.VarChar(150)
+  classLevel          String   @db.VarChar(20)
+  term                Int      @db.SmallInt
+  week                Int      @db.SmallInt
+  topic               String   @db.VarChar(255)
+  subTopics           String[]
+  objectives          String[]
+  teachingActivities  String?
+  teachingAids        String?
+  evaluation          String?
+  referenceText       String?  @db.VarChar(255)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([subject, classLevel, term, week])
+  @@index([subject, classLevel], name: "idx_general_curriculum_subject")
+}
+
 model UserResource {
   resourceId    String       @id @default(uuid())
   userId        String
@@ -198,11 +218,12 @@ model UserResource {
 }
 
 model LessonNote {
-  noteId           String  @id @default(uuid())
-  userId           String
-  curriculumWeekId String?
-  transactionId    String?
-  resourceId       String?
+  noteId              String  @id @default(uuid())
+  userId              String
+  curriculumWeekId    String?
+  generalCurriculumId String?
+  transactionId       String?
+  resourceId          String?
 
   name        String? @db.VarChar(255)
   subjectName String  @db.VarChar(150)

@@ -24,6 +24,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurriculumService, NormalizedCurriculum } from '../curriculum/curriculum.service';
 import { GenerateNoteDto } from './dto/generate-note.dto';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { RegenerateDto } from './dto/regenerate.dto';
@@ -46,6 +47,7 @@ export class GenerationService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private curriculumService: CurriculumService,
   ) {
     this.apiKey = config.getOrThrow('OPENROUTER_API_KEY');
     this.planCost = +config.get('PLAN_COST_PARATS', '8');
@@ -83,12 +85,11 @@ export class GenerationService {
   // ─── Phase 1: Lesson Plan ────────────────────────────────────────────────
 
   async generatePlan(userId: string, dto: GeneratePlanDto) {
-    const wallet = await this.ensureBalance(userId, this.planCost);
+    if (!dto.curriculumWeekId && !dto.generalCurriculumId) {
+      throw new BadRequestException('Provide either curriculumWeekId or generalCurriculumId');
+    }
 
-    const curriculum = await this.prisma.curriculumWeek.findUnique({
-      where: { curriculumWeekId: dto.curriculumWeekId },
-    });
-    if (!curriculum) throw new NotFoundException('Curriculum week not found');
+    const wallet = await this.ensureBalance(userId, this.planCost);
 
     const user = await this.prisma.user.findUnique({
       where: { userId },
@@ -97,6 +98,14 @@ export class GenerationService {
 
     const difficulty = user?.settings?.noteDifficultyLevel ?? 'standard';
     const session = this.academicSession();
+
+    let curriculum: NormalizedCurriculum;
+    if (dto.curriculumWeekId) {
+      curriculum = await this.curriculumService.getStateWeekById(dto.curriculumWeekId);
+    } else {
+      const teacherState = user?.state ?? user?.settings?.defaultState ?? 'Federal';
+      curriculum = await this.curriculumService.getGeneralWeekById(dto.generalCurriculumId!, teacherState);
+    }
 
     const prompt = this.buildPlanPrompt(curriculum, dto.durationMinutes, difficulty, session);
     const { data: plan, tokensUsed, status } = await this.callOpenRouter(prompt, LessonPlanSchema, this.planMaxTokens);
@@ -127,7 +136,8 @@ export class GenerationService {
       const lessonNote = await tx.lessonNote.create({
         data: {
           userId,
-          curriculumWeekId: dto.curriculumWeekId,
+          curriculumWeekId: curriculum.source === 'state' ? curriculum.id : undefined,
+          generalCurriculumId: curriculum.source === 'general' ? curriculum.id : undefined,
           transactionId: transaction.transactionId,
           resourceId: dto.resourceId,
           name: noteName,
@@ -379,7 +389,7 @@ export class GenerationService {
   // ─── Prompt Builders ─────────────────────────────────────────────────────
 
   private buildPlanPrompt(
-    c: CurriculumWeek,
+    c: NormalizedCurriculum | CurriculumWeek,
     durationMinutes: number,
     difficulty: string,
     session: string,
